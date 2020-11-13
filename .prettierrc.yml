@@ -1,0 +1,14 @@
+printWidth: 120 # Specify the line length that the printer will wrap on.
+tabWidth: 4 # Specify the number of spaces per indentation-level.
+# semi: false               # Sure to add a semicolon at the end of every statement?
+# singleQuote: true         # Sure to use single quotes instead of double quotes?
+quoteProps: "consistent"    # If at least one property in an object requires quotes, quote all properties.
+trailingComma: "all" # Where(ver) to print trailing when multi-line?
+endOfLine: "lf" # Specify line endings. PS: \n(LF), \r(CR), \r\n(CRLF).
+overrides:
+  - files: ".prettierrc"
+    options:
+      parser: "yaml" # Specify which parser to use.
+  - files: ["*.md", "*.json", "*.yml", "*.yaml"]
+    options:
+      tabWidth: 2

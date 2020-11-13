@@ -1,0 +1,57 @@
+{
+  "name": "javascript-starter",
+  "version": "0.0.1",
+  "description": "A starter template for javascript project.",
+  "main": "index.js",
+  "author": "cjiali <chjiali@outlook.com>",
+  "license": "MIT",
+  "scripts": {
+    "lint": "eslint",
+    "build": "rollup -c",
+    "test": "jest -u",
+    "version": "conventional-changelog -p angular -i CHANGELOG.md -s && git add CHANGELOG.md"
+  },
+  "hooks": {
+    "pre-commit": "lint-staged",
+    "commit-msg": "node scripts/verify-commit-msg.js ${HUSKY_GIT_PARAMS}"
+  },
+  "lint-staged": {
+    "**/*": "prettier --write --ignore-unknown",
+    "**/*.js?(x)": [
+      "eslint"
+    ]
+  },
+  "devDependencies": {
+    "@babel/core": "^7.12.3",
+    "@babel/preset-env": "^7.12.1",
+    "conventional-changelog-cli": "^2.1.0",
+    "eslint": "^7.12.1",
+    "husky": "^4.3.0",
+    "jest": "^26.6.1",
+    "lint-staged": "^10.5.1",
+    "prettier": "^2.1.2",
+    "rollup": "^2.32.1",
+    "rollup-plugin-babel": "^4.4.0",
+    "rollup-plugin-commonjs": "^10.1.0",
+    "rollup-plugin-eslint": "^7.0.0",
+    "rollup-plugin-json": "^4.0.0",
+    "rollup-plugin-node-resolve": "^5.2.0"
+  },
+  "babel": {
+    "presets": [
+      [
+        "@babel/preset-env",
+        {
+          "targets": {
+            "node": "current"
+          }
+        }
+      ]
+    ]
+  },
+  "jest": {
+    "verbose": true,
+    "coverage": true,
+    "testEnvironment": "node"
+  }
+}
