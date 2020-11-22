@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <style>
+      .classA0 {
+        color: red;
+      }
+      .classA1 {
+        color: orange;
+      }
+      .classB0 {
+        color: yellow;
+      }
+      .classB1 {
+        color: green;
+      }
+      .classC0 {
+        color: blue;
+      }
+      .classC1 {
+        color: violet;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <template>
+      <div
+        class="dafault {{classes.classA0}} {{classes.classA1}}"
+        @for="(valA keyA idxA) in lists.listA"
+        @key="idxA"
+        @if="conditions.conA0 && conditions.conA1"
+        @on:click="onDivAClick"
+      >
+        <div>layer:A</div>
+        <div
+          class="dafault {{classes.classB0}} {{classes.classB1}}"
+          @for="(valB keyB idxB) in lists.listB"
+          @key="idxB"
+          @if="conditions.conB0 && conditions.conB1"
+          @click="onDivBClick"
+        >
+          <div>layer:B</div>
+          <div
+            class="dafault {{classes.classC0}} {{classes.classC1}}"
+            @if="idxA !== idxB"
+            @click="onDivCClick"
+          >
+            <div>layer:C</div>
+            row:{{idxA}}, col: {{idxB}}
+          </div>
+        </div>
+      </div>
+    </template>
+    <script src="./data.js" ></script>
+    <script src="./ast.js" ></script>
+    <script src="./Observer.js" ></script>
+    <script src="./Compiler.js" ></script>
+    <script text="javascript">
+      class Parser {
+        //  template ==> ast
+        constructor() {}
+      }
+
+      // class Compiler {
+      //   // data ==> vm
+      //   constructor() {}
+      // }
+      console.log("new Compiler", ast, data)
+      let o = new Observer().observe(data)
+      let c = new Compiler().compile([ast], data);
+
+      console.log("Compiler:", c);
+
+      class Watcher {
+        // Object.defineProperty
+        constructor() {}
+      }
+
+      class Render {
+        // vm ==> html
+        constructor() {}
+      }
+
+      class MVVM {
+        // lifecycle
+        constructor() {
+          this.$root = document.querySelector("#root");
+        }
+      }
+    </script>
+  </body>
+</html>
