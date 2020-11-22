@@ -64,21 +64,26 @@ import {traverse} from "./utils";
 
 const state = {
     computers:[
-        // [`function(scope){with(scope){return '${text.replace(/'/g, "\"").split(/{{/g).join("'+").split(/}}/g).join("+'")}'`, scope]
-    ],// new Function("context",`with(scope){return ${computers.map()}}`)
-    vdom: null,
-    eval(expr){
+        // `function(scope){ with(scope){ return ${expression}; } }`
+    ],// new Function("",`return [${computers.join(',')}]; `)
+    vdom: {
+        type: "root",
+        children: []
+    },
+    eval: ()=>{
         const {computers} = state;
-        let code = `function(scope){with(scope){return ${expr}}}`;
-        return computers.push(code)-1;
+        return (new Function("",`return [${computers.join(",")}]; `))();
     }
 };
 
+function functionalize(expr){
+    const { computers } = state;
+    let code = `function(scope){ with(scope){  return ${expr}; } }`;
+    return computers.push(code)-1;
+}
+
 function transform(ast){
-    const vdom = {
-        type: "root",
-        children: []
-    };
+    const {vdom} = state;
 
     traverse(ast,(current, parent)=>{
         if(!parent){// 根节点
@@ -105,7 +110,8 @@ function transform(ast){
         // console.log(current, parent);
     });
     console.log({vdom});
-    return (state.vdom = vdom);
+    
+    return state;
 }
 
 function checkTextASTNode(current, parent){
@@ -128,7 +134,7 @@ function checkTextASTNode(current, parent){
                 raw: text,
                 key: Symbol(),
                 expression,
-                compute: state.eval(expression)
+                compute: functionalize(expression)
             },
         });
     }
@@ -141,76 +147,115 @@ function checkElementASTNode(current, parent){
     // transform element node
     const {tag, map} = data;
     const vnode = {
-        key: Symbol(),
+        type: "element",
+        flag: "static",// Default, transform to static element vnode
         data: {
             tag,
             directives: [],
             properties: [],
             attributes: [],
         },
-        control:{},
+        // control: null,
         children: [],
     };
-    const {data:{directives, properties, attributes}} = vnode;
-    const controls = [null, null];// [@for, @if]
+    /* 属性转换 */
+    const controls = [];// [ @for, @if ]
+    transformAttrs(map, vnode, controls);
+    /* 构建 extra 节点 */
+    buildExtraVNode(controls, vnode, context);
+    /* 保留一个从旧 ASTNode 指向新 VNode 的引用 context */
+    current.context = vnode.children; 
+}
+
+function transformAttrs(attrsMap, vnode, controls){
+    if(!attrsMap) return;
+
+    const { 
+        data:{ directives, properties, attributes }
+    } = vnode;
     /* 遍历属性 */
-    map && Object.entries(map).forEach(([name,text])=>{
+    Object.entries(attrsMap).forEach(([name,text])=>{
         // let scope={};
-        let match=null, expression="";
         if(!name){ // illegal attribute name
             throw new TypeError(`Illegal attribute name with ${name}!`);
-        }else if(/@for/.test(name)){/* 收集 extra 节点 */
-            match = /(.+?)\s*in\s*([^\s]+)/.exec(text);
-            expression = match[2].trim();
-            let alias=/^([^()]+)$/.exec(match[1]),
-                entry=/\((.+?)(?:[, ](.+?))(?:[, ](.+?))\)/.exec(match[1]);
-            controls[0] = {
-                type: "extra",
-                control: {
-                    type: "loop",
-                    text,
-                    target: null,
-                    detail:{
-                        alias: alias ? alias[1] : "",
-                        index: entry ? entry[2] : "",
-                        value: entry ? entry[1] : "",
-                    },
-                    expression,// such as "(val, key, idx) in list" or "(val, key) in list" or "(val) in list" or "item:{key, index, value} in list"
-                    computer: state.eval(expression), //new Function("scope", `with(scope){return ${expression}}`)
-                },
-                children: []
-            };
-        }else if(/@if/.test(name)){/* 收集 extra 节点 */
-            expression = text.trim();
-            controls[1]={
-                type: "extra",
-                control: {
-                    type: "condition",
-                    text,
-                    target: null,
-                    expression,
-                    computer: state.eval(expression), //new Function("scope", `with(scope){return ${expression}}`)
-                },
-                children: []
-            };
-        }else if((match=/@(?:[a-zA-Z][a-zA-Z-]*:)?([a-zA-Z][a-zA-Z-]*)/.exec(name))){/* 收集指令属性 */
-            expression = match[1];
-            directives.push({name, text,expression});
+        }else if(/^@for/.test(name)){/* 收集 extra 节点 */
+            controls[0] =transToLoopCtrl(name, text);
+        }else if(/^@if/.test(name)){/* 收集 extra 节点 */
+            controls[1] = transToCondCtrl(name, text);
+        }else if((/^@[a-zA-Z][a-zA-Z-:]*/.test(name))){/* 收集指令属性 */
+            directives.push(transToDirectives(name, text));
         }else if(/\{\{[\s\S]+\}\}/.test(text)){/* 收集动态属性 */
-            expression = `'${text.replace(/'/g, "\"").split(/{{/g).join("'+").split(/}}/g).join("+'")}'`;
-            properties.push({
-                key: Symbol(),
-                name, 
-                text,
-                expression,
-                computer: state.eval(expression)
-            });
+            properties.push(transToProperties(name, text));
         }else{/* 收集静态属性 */
             attributes.push({name, text});
-        }
-            
+        } 
     });
-    /* 构建 extra 节点 */
+    /* 标记静态节点 */
+    if(directives.length || properties.length){
+        Object.assign(vnode, {
+            flag: "dynamic",
+            key: Symbol(),
+        });
+    }
+}
+
+function transToLoopCtrl(name, text){
+    let match= /(.+?)\s*in\s*([^\s]+)/.exec(text),
+        expression = match[2].trim(),
+        alias=/^([^()]+)$/.exec(match[1]),
+        entry=/\((.+?)(?:[, ](.+?))(?:[, ](.+?))\)/.exec(match[1]);
+    return {
+        type: "extra",
+        control: {
+            type: "loop",
+            name,
+            text,
+            target: null,
+            detail:{
+                alias: alias ? alias[1] : "",
+                value: entry ? entry[1] : "",
+                index: entry ? entry[2] : "",
+            },
+            expression,// such as "(val, key, idx) in list" or "(val, key) in list" or "(val) in list" or "item:{key, index, value} in list"
+            computer: functionalize(expression), //new Function("scope", `with(scope){return ${expression}}`)
+        },
+        children: []
+    };
+}
+
+function transToCondCtrl(name, text){
+    let expression = text.trim();
+    return {
+        type: "extra",
+        control: {
+            type: "condition",
+            name,
+            text,
+            target: null,
+            expression,
+            computer: functionalize(expression), //new Function("scope", `with(scope){return ${expression}}`)
+        },
+        children: []
+    };
+}
+
+function transToDirectives(name, text){
+    let match=/@(?:[a-zA-Z][a-zA-Z-]*:)?([a-zA-Z][a-zA-Z-]*)/.exec(name);
+    return {name, text, expression:match[1]};
+}
+
+function transToProperties(name, text){
+    let expression = `'${text.replace(/'/g, "\"").split(/{{/g).join("'+").split(/}}/g).join("+'")}'`;
+    return {
+        key: Symbol(),
+        name, 
+        text,
+        expression,
+        computer: functionalize(expression)
+    };
+}
+
+function buildExtraVNode(controls, vnode, context){
     let extra = null;
     if(controls[0] && controls[1]){
         controls[0]["control"]["target"] = controls[1];
@@ -226,23 +271,7 @@ function checkElementASTNode(current, parent){
         extra = vnode;
     }
     context.push(extra);
-    current.context = vnode.children; /* 保留一个从旧 ASTNode 指向新 VNode 的引用 context */
 }
-
-
-
-// function functionalize(string, type=0){
-//     const {computers} = state;
-//     let code = "";
-//     switch(type){
-//     case 1: // @for or @if
-//         code = `with(scope){return ${string}}`;
-//         break;
-//     default: // {{}}
-//         code = `function(scope){with(scope){return '${string.replace(/'/g, "\"").split(/{{/g).join("'+").split(/}}/g).join("+'")}'`;
-//     }
-//     return computers.push(code)-1;
-// }
 
 
 export default transform;

@@ -139,38 +139,30 @@ export const ast = {
                     },
                     children: [
                         {
+                            type: "text",
+                            text: "layer:B"
+                        },
+                        {
                             type: "element",
                             data: {
                                 tag: "div",
+                                map: {
+                                    "class":"default {{classes.classC0}} {{classes.classC1}}",
+                                    "@if":"idxA !== idxB",
+                                    "@click":"onDivCClick",
+                                }
                             },
                             children: [
                                 {
                                     type: "text",
-                                    text: "layer:B"
+                                    text: "layer:C"
                                 },
                                 {
-                                    type: "element",
-                                    data: {
-                                        tag: "div",
-                                        map: {
-                                            "class":"default {{classes.classC0}} {{classes.classC1}}",
-                                            "@if":"idxA !== idxB",
-                                            "@click":"onDivCClick",
-                                        }
-                                    },
-                                    children: [
-                                        {
-                                            type: "text",
-                                            text: "layer:C"
-                                        },
-                                        {
-                                            type: "text",
-                                            text: "row:{{idxA}}, col: {{idxB}}"
-                                        },
-                                    ]
-                                }
+                                    type: "text",
+                                    text: "row:{{idxA}}, col: {{idxB}}"
+                                },
                             ]
-                        },
+                        }
                     ]
                 }
             ]
