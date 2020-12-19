@@ -1,0 +1,62 @@
+&div#id.classA.classB.classC[title="A title text",class=classD style=width:100px;height:100px;color:red]{ 
+    A div demo 
+}
+&div#id.classA.classB.classC(width:100px height:100px;color:red)[title="A title text",class=classD]{ A div demo }
+&div#id.classA.classB.classC(width:100px height:100px;color:red){ 
+    A div demo 
+}[title="A title text",class=classD] 
+
+@()
+@[]
+@{}
+
+#()
+#[]
+#{}
+
+!()
+![]
+!{}
+
+&()
+&[]
+&{}
+
+Heading      -> %[1-6] Space Span \n
+Hr           -> +++ <Spaces> \n 
+              | --- <Spaces> \n 
+              | *** <Spaces> \n 
+              | /// <Spaces> \n
+List         -> * Paragraph Text
+              | + Paragraph Text
+              | - Paragraph Text
+              | 1.Paragraph Text
+Blockqoute   -> & Paragraph Text
+
+Table        -> 
+|    Table Head    |Table Head|
+| ---------------- |   ---    |
+|    Table Cell    |Table Cell|
+||Two row span Cell|Table Cell|
+                   |Table Cell|
+|:      Two col span Cell     |
+
+Code         -> ``Inline Code``
+              | ```Code Language <Spaces>\n Block Code```
+Math         -> $$Inline Math$$
+              | $$$Math Language <Spaces>\n Block Math$$$
+Container    -> ::Inline Container::
+              | :::Container Flag <Spaces>\n Block Container:::
+
+Anchor       -> #Text
+              | #{Anchor Text}
+Emphasis     -> //Span Text//
+Strong       -> **Span Text**
+Deleted      -> --Span Text--
+Inserted     -> ++Span Text++
+Marked       -> ==Span Text==
+Underline    -> __Span Text__
+Image        -> ![ Src,Title ]{ Span Text }
+              | &img[src=Url, alt=Title]{ Span Text }
+Link         -> #[ Url,Title ]{ Span Text }
+              | &a[href=Url, alt=Title]{ Span Text }

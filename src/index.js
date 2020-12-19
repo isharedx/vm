@@ -40,7 +40,7 @@ console.log("reflect:undefined", reflect(undefined));
 console.log("reflect:symbol", reflect(Symbol()));
 console.log("reflect:object", reflect(data)); */
 console.log("observe:object", observe(data));
-console.log("ref:false", ref(false));
+console.log("[ref(false)]", [ref(false)]);
 /* const arr = [];
 let proxy = new Proxy(arr, {
     get:function(target, p, receiver){
@@ -57,4 +57,8 @@ proxy.push(1); */
 
 // const t = new Transformer(ast);
 // const g = new Generator(t.vdom);
-console.log("transform:ret", transform(ast));
+const s = transform(ast);
+console.log("transform:ret", s);
+const computers = s.eval();
+console.log("state.eval()", computers);
+console.log("[computers[0](data)]", [computers[0](data)]/* computers.map(item=>item(data)) */);

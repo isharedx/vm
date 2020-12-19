@@ -17,41 +17,65 @@ ASTNode:{
 VNode:{
     type: "root" | "text" | "element" | "extra",
     flag: "static" | "dynamic",
-    key: String | Number | Symbol,
+    id: String | Number | Symbol,
+    element?: HTMLElement,
+    parent?: HTMLElement, // optional, point to parent vnode
+
+    // props for text vnode 
+    raw: String,
+    text?: { // When type is 'text'
+        key: String | Number | Symbol, // When need to eval string
+        expression: String, 
+        computer: Number, // Index for compute function 
+    },
+
+    // props for element vnode 
+    tag: String,
     data?: { // When type is 'element'
-        tag: String,
         directives: IDirective[], // Bound HTML event attributes, such as <img @click="click">, etc.
         attributes: IAttribute[], // When flag is static, means static HTML attributes, such as <img title="Title Text">, etc.
         properties: IProperty[], // When flag is dynamic, means dynamic HTML attributes, such as <img title="{{title}}">, etc.
-    }
-    text?: { // When type is 'text'
-        raw: String,
-        key: String | Number | Symbol, // When flag is dynamic
-        compute: Function, // When flag is dynamic
-    },
-    control?: { // When type is 'extra', such as <img @for="(v,i) in 3"  @key="i">, <img @if="show">, etc.
-        key: String | Number | Symbol, 
-        type: 'for' | 'if', 
-        expression: String, 
-        compute: Function
     },
     children?: Array,
-    element?: HTMLElement,
-    parent?: HTMLElement,
+
+    // props for control vnode 
+    // use: '@for' | '@if',
+    use: 'loop' | 'decision', 
+    node?: {
+        alias: String,
+        value: String,
+        key: String,
+        index: String
+    }
+    control?: { // When type is 'extra', such as <img @for="(v,i) in 3"  @key="i">, <img @if="show">, etc.
+        key: String | Number | Symbol, // When need to eval string
+        expression: String, 
+        computer: Number, // Index for compute function
+    },
+    origin?: VNode,
+    children?: Array,
+}
+
+IComputer: {
+    key: Symbol,
+    text: String,
+    expr: String, 
+    index: Number,
 }
 
 IProperty: {
-    key: String | Number | Symbol,
+    key: String | Number | Symbol, // When need to eval string
     name: String,
     text: String,
-    compute: Function,
+    computer: Number, // Index for compute function 
 }
 such as: 
 {
     key: String | Number | Symbol,
     name: 'class',
     text: 'default {{classes.classA0}} {{classes.classA1}}',
-    compute: (scope)=>{ // new Function("scope",`with(scope){return '${text.replace("'", "\"").split(/{{/igm).join("'+").split(/}}/igm).join("+'")}';}`)
+    expression: String, 
+    computer: (scope)=>{ // new Function("scope",`with(scope){return '${text.replace("'", "\"").split(/{{/igm).join("'+").split(/}}/igm).join("+'")}';}`)
         with(scope){
             return "default "+`${classes.classA0}  ${classes.classA1}`+"";
         }
@@ -72,7 +96,7 @@ const state = {
     },
     eval: ()=>{
         const {computers} = state;
-        return (new Function("",`return [${computers.join(",")}]; `))();
+        return (new Function(`return [${computers.join(",")}]; `))();
     }
 };
 
@@ -127,7 +151,7 @@ function checkTextASTNode(current, parent){
     };
     if(/\{\{[\s\S]+\}\}/.test(text)){
         // transform to dynamic text vnode
-        let expression = `${text.replace(/'/g, "\"").split(/{{/g).join("'+").split(/}}/g).join("+'")}`;
+        let expression = `'${text.replace(/'/g, "\"").split(/{{/g).join("'+").split(/}}/g).join("+'")}'`;
         Object.assign(vnode, {
             flag: "dynamic",
             text: {
@@ -159,15 +183,15 @@ function checkElementASTNode(current, parent){
         children: [],
     };
     /* 属性转换 */
-    const controls = [];// [ @for, @if ]
-    transformAttrs(map, vnode, controls);
+    const extras = [];// [ @for, @if ]
+    transformAttrs(map, vnode, extras);
     /* 构建 extra 节点 */
-    buildExtraVNode(controls, vnode, context);
+    buildExtraVNode(extras, vnode, context);
     /* 保留一个从旧 ASTNode 指向新 VNode 的引用 context */
     current.context = vnode.children; 
 }
 
-function transformAttrs(attrsMap, vnode, controls){
+function transformAttrs(attrsMap, vnode, extras){
     if(!attrsMap) return;
 
     const { 
@@ -179,9 +203,9 @@ function transformAttrs(attrsMap, vnode, controls){
         if(!name){ // illegal attribute name
             throw new TypeError(`Illegal attribute name with ${name}!`);
         }else if(/^@for/.test(name)){/* 收集 extra 节点 */
-            controls[0] =transToLoopCtrl(name, text);
+            extras[0] =transToLoopCtrl(name, text);
         }else if(/^@if/.test(name)){/* 收集 extra 节点 */
-            controls[1] = transToCondCtrl(name, text);
+            extras[1] = transToDecisionCtrl(name, text);
         }else if((/^@[a-zA-Z][a-zA-Z-:]*/.test(name))){/* 收集指令属性 */
             directives.push(transToDirectives(name, text));
         }else if(/\{\{[\s\S]+\}\}/.test(text)){/* 收集动态属性 */
@@ -206,11 +230,11 @@ function transToLoopCtrl(name, text){
         entry=/\((.+?)(?:[, ](.+?))(?:[, ](.+?))\)/.exec(match[1]);
     return {
         type: "extra",
+        use: "loop",
         control: {
-            type: "loop",
+            type: "@for",
             name,
             text,
-            target: null,
             detail:{
                 alias: alias ? alias[1] : "",
                 value: entry ? entry[1] : "",
@@ -219,22 +243,24 @@ function transToLoopCtrl(name, text){
             expression,// such as "(val, key, idx) in list" or "(val, key) in list" or "(val) in list" or "item:{key, index, value} in list"
             computer: functionalize(expression), //new Function("scope", `with(scope){return ${expression}}`)
         },
+        origin: null,
         children: []
     };
 }
 
-function transToCondCtrl(name, text){
+function transToDecisionCtrl(name, text){
     let expression = text.trim();
     return {
         type: "extra",
+        use: "decision",
         control: {
-            type: "condition",
+            type: "@if",
             name,
             text,
-            target: null,
             expression,
             computer: functionalize(expression), //new Function("scope", `with(scope){return ${expression}}`)
         },
+        origin: null,
         children: []
     };
 }
@@ -255,18 +281,18 @@ function transToProperties(name, text){
     };
 }
 
-function buildExtraVNode(controls, vnode, context){
+function buildExtraVNode(extras, vnode, context){
     let extra = null;
-    if(controls[0] && controls[1]){
-        controls[0]["control"]["target"] = controls[1];
-        controls[1]["control"]["target"] = vnode;
-        extra = controls[0];
-    }else if(controls[0]){
-        controls[0]["control"]["target"] = vnode;
-        extra = controls[0];
-    }else if(controls[1]){
-        controls[1]["control"]["target"] = vnode;
-        extra = controls[1];
+    if(extras[0] && extras[1]){
+        extras[0]["origin"] = extras[1];
+        extras[1]["origin"] = vnode;
+        extra = extras[0];
+    }else if(extras[0]){
+        extras[0]["origin"] = vnode;
+        extra = extras[0];
+    }else if(extras[1]){
+        extras[1]["origin"] = vnode;
+        extra = extras[1];
     }else{
         extra = vnode;
     }
